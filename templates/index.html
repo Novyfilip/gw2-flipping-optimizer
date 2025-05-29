@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>GW2 TP Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <!-- Navbar -->
+  <nav>
+    <div class="nav-links">
+      <a href="/" class="nav-link">📊 Dashboard</a>
+      <a href="/plan" class="nav-link">🛒 Recommender</a>
+      <a href="/deliveries" class="nav-link">📦 Deliveries</a>
+      <a href="/settings" class="nav-link">⚙️ Settings</a>
+    </div>
+    <div class="nav-search-wrapper">
+      <input id="item-search" class="nav-search" placeholder="🔍 Filter items…">
+    </div>
+  </nav>
+
+  <div class="content">
+    <!-- Overview grid: 2x2 layout -->
+    <header class="overview-grid">
+      <div><strong>Total BUY locked:</strong>
+        {% if total_buy_copper>=10000 %}{{total_buy_copper//10000}}🥇{% endif %}
+        {% if total_buy_copper>=100 %}{{(total_buy_copper//100)%100}}🥈{% endif %}
+        {{total_buy_copper%100}}🥉
+      </div>
+      <div><strong>Total SELL locked:</strong>
+        {% if total_sell_copper>=10000 %}{{total_sell_copper//10000}}🥇{% endif %}
+        {% if total_sell_copper>=100 %}{{(total_sell_copper//100)%100}}🥈{% endif %}
+        {{total_sell_copper%100}}🥉
+      </div>
+      <div><strong>Delivery Box:</strong>
+        {% if total_delivery_copper>=10000 %}{{total_delivery_copper//10000}}🥇{% endif %}
+        {% if total_delivery_copper>=100 %}{{(total_delivery_copper//100)%100}}🥈{% endif %}
+        {{total_delivery_copper%100}}🥉
+      </div>
+      <div><strong>Grand Total:</strong>
+        {% if grand_total_copper>=10000 %}{{grand_total_copper//10000}}🥇{% endif %}
+        {% if grand_total_copper>=100 %}{{(grand_total_copper//100)%100}}🥈{% endif %}
+        {{grand_total_copper%100}}🥉
+      </div>
+    </header>
+
+    <!-- Tables for buy/sell orders -->
+    <div class="tables">
+      <section class="panel">
+        <h2>Buy Orders</h2>
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Qty</th><th>Price</th><th>Locked</th></tr>
+          </thead>
+          <tbody>
+          {% for o in buys %}
+            <tr>
+              <td>{{o.name}}</td>
+              <td>{{o.quantity}}</td>
+              <td>
+                {% if o.price>=10000 %}{{o.price//10000}}🥇{% endif %}
+                {% if o.price>=100 %}{{(o.price//100)%100}}🥈{% endif %}
+                {{o.price%100}}🥉
+              </td>
+              <td>
+                {% set v=o.price*o.quantity %}
+                {% if v>=10000 %}{{v//10000}}🥇{% endif %}
+                {% if v>=100 %}{{(v//100)%100}}🥈{% endif %}
+                {{v%100}}🥉
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Sell Orders</h2>
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Qty</th><th>Price</th><th>Locked</th></tr>
+          </thead>
+          <tbody>
+          {% for o in sells %}
+            <tr>
+              <td>{{o.name}}</td>
+              <td>{{o.quantity}}</td>
+              <td>
+                {% if o.price>=10000 %}{{o.price//10000}}🥇{% endif %}
+                {% if o.price>=100 %}{{(o.price//100)%100}}🥈{% endif %}
+                {{o.price%100}}🥉
+              </td>
+              <td>
+                {% set v=o.price*o.quantity %}
+                {% if v>=10000 %}{{v//10000}}🥇{% endif %}
+                {% if v>=100 %}{{(v//100)%100}}🥈{% endif %}
+                {{v%100}}🥉
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+
+  <!-- Filter script -->
+  <script>
+    document.getElementById('item-search')
+      .addEventListener('input', e => {
+        const f = e.target.value.toLowerCase();
+        document.querySelectorAll('.panel tbody tr').forEach(r => {
+          r.style.display = r.cells[0].textContent.toLowerCase().includes(f) ? '' : 'none';
+        });
+      });
+  </script>
+</body>
+</html>

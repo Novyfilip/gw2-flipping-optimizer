@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}GW2 TP Dashboard{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav>
+  <div class="nav-links">
+    <a href="/"          class="nav-link">📊 Dashboard</a>
+    <a href="/plan"      class="nav-link">🛒 Recommender</a>
+    <a href="/deliveries" class="nav-link">📦 Deliveries</a>
+    <a href="/settings"   class="nav-link">⚙️ Settings</a>
+  </div>
+
+  <div class="nav-search-wrapper">
+    <input
+      type="text"
+      id="item-search"
+      class="nav-search"
+      placeholder="🔍 Filter items…"
+    >
+  </div>
+</nav>
+
+  <div class="content">
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

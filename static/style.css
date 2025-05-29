@@ -1,0 +1,133 @@
+/* static/style.css (updated for more transparency and refined navbar) */
+:root {
+  --nav-bg: rgba(43, 43, 43, 0.85);
+  --nav-text: #f0e0c0;
+  --panel-bg: rgba(255, 250, 240, 0.6);
+  --panel-border: #d2c4a0;
+  --content-bg: rgba(255, 250, 240, 0.65);
+  --heading-color: #3b362f;
+  --text-color: #2e2a25;
+  --gap: 1rem;
+  --max-width: 1024px;
+}
+
+/* Full-page painterly background */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, sans-serif;
+  color: var(--text-color);
+  background: url('/static/background.png') no-repeat center center fixed;
+  background-size: cover;
+}
+
+/* Dark, semi-transparent navbar with backdrop blur */
+nav {
+  background: var(--nav-bg);
+  padding: 0.75rem 2rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(8px);
+  display: flex;
+}
+nav .nav-link {
+  color: #f1c40f;  /* gold link color for readability */
+  margin: 0 1.5rem;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1rem;
+}
+nav .nav-link:hover {
+  text-decoration: underline;
+  color: #fff;  /* highlight on hover */
+}
+nav .nav-link:hover {
+  text-decoration: underline;
+}
+
+/* Centered, translucent content panel with blur backdrop */
+.content {
+  max-width: var(--max-width);
+  margin: var(--gap) auto;
+  padding: var(--gap);
+  background: var(--content-bg);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  backdrop-filter: blur(12px);
+}
+
+h1, h2 {
+  color: var(--heading-color);
+  margin-top: 0;
+}
+
+/* Tables container */
+.tables {
+  display: flex;
+  gap: var(--gap);
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+/* Individual panels with lift and transparency */
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: var(--gap);
+  flex: 1 1 calc(50% - var(--gap));
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  backdrop-filter: blur(8px);
+}
+
+/* Delivery box styling */
+.delivery {
+  margin-top: var(--gap);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: var(--gap);
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  backdrop-filter: blur(8px);
+}
+.delivery p {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+/* Table styling */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--gap);
+  background: rgba(255,255,255,0.8);
+}
+th, td {
+  padding: 0.5rem;
+  border: 1px solid var(--panel-border);
+}
+th {
+  background: #e4d598;
+  color: var(--heading-color);
+  text-align: left;
+}
+td {
+  text-align: right;
+}
+td:first-child {
+  text-align: left;
+}
+
+/* Responsive adjustments */
+@media (max-width: 800px) {
+  .tables {
+    flex-direction: column;
+  }
+  .panel {
+    flex: 1 1 100%;
+  }
+}
