@@ -7,12 +7,12 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <!-- Navbar -->
   <nav>
     <div class="nav-links">
       <a href="/" class="nav-link">📊 Dashboard</a>
       <a href="/plan" class="nav-link">🛒 Recommender</a>
       <a href="/deliveries" class="nav-link">📦 Deliveries</a>
+      <a href="/favorites" class="nav-link">⭐ Favorites</a>
       <a href="/settings" class="nav-link">⚙️ Settings</a>
     </div>
     <div class="nav-search-wrapper">
@@ -21,28 +21,29 @@
   </nav>
 
   <div class="content">
-    <!-- Overview grid: 2x2 layout -->
     <header class="overview-grid">
       <div><strong>Total BUY locked:</strong>
-        {% if total_buy_copper>=10000 %}{{total_buy_copper//10000}}🥇{% endif %}
-        {% if total_buy_copper>=100 %}{{(total_buy_copper//100)%100}}🥈{% endif %}
-        {{total_buy_copper%100}}🥉
+        {% if total_buy_copper >= 10000 %}{{ total_buy_copper//10000 }}🥇{% endif %}
+        {% if total_buy_copper >= 100 %}{{ (total_buy_copper//100)%100 }}🥈{% endif %}
+        {{ total_buy_copper%100 }}🥉
       </div>
       <div><strong>Total SELL locked:</strong>
-        {% if total_sell_copper>=10000 %}{{total_sell_copper//10000}}🥇{% endif %}
-        {% if total_sell_copper>=100 %}{{(total_sell_copper//100)%100}}🥈{% endif %}
-        {{total_sell_copper%100}}🥉
+        {% if total_sell_copper >= 10000 %}{{ total_sell_copper//10000 }}🥇{% endif %}
+        {% if total_sell_copper >= 100 %}{{ (total_sell_copper//100)%100 }}🥈{% endif %}
+        {{ total_sell_copper%100 }}🥉
       </div>
       <div><strong>Delivery Box:</strong>
-        {% if total_delivery_copper>=10000 %}{{total_delivery_copper//10000}}🥇{% endif %}
-        {% if total_delivery_copper>=100 %}{{(total_delivery_copper//100)%100}}🥈{% endif %}
-        {{total_delivery_copper%100}}🥉
+        {% if total_delivery_copper >= 10000 %}{{ total_delivery_copper//10000 }}🥇{% endif %}
+        {% if total_delivery_copper >= 100 %}{{ (total_delivery_copper//100)%100 }}🥈{% endif %}
+        {{ total_delivery_copper%100 }}🥉
       </div>
       <div><strong>Grand Total:</strong>
-        {% if grand_total_copper>=10000 %}{{grand_total_copper//10000}}🥇{% endif %}
-        {% if grand_total_copper>=100 %}{{(grand_total_copper//100)%100}}🥈{% endif %}
-        {{grand_total_copper%100}}🥉
+        {% if grand_total_copper >= 10000 %}{{ grand_total_copper//10000 }}🥇{% endif %}
+        {% if grand_total_copper >= 100 %}{{ (grand_total_copper//100)%100 }}🥈{% endif %}
+        {{ grand_total_copper%100 }}🥉
       </div>
+      <!-- Sparkline -->
+      <canvas id="sparkline" width="140" height="40"></canvas>
     </header>
 
     <!-- Tables for buy/sell orders -->
@@ -115,5 +116,19 @@
         });
       });
   </script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const ctx = document.getElementById('goldChart').getContext('2d');
+  const data = {
+    labels: {{ totals.keys()|list|tojson }},
+    datasets: [{
+      label: 'Gold Locked (g)',
+      data: {{ totals.values()|list|tojson }},
+      backgroundColor: ['rgba(241,196,15,0.8)','rgba(231,76,60,0.8)','rgba(46,204,113,0.8)','rgba(52,152,219,0.8)']
+    }]
+  };
+  new Chart(ctx, { type: 'bar', data });
+</script>
+  
 </body>
 </html>

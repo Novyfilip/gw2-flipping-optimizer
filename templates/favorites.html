@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}⭐ Stock – GW2 TP{% endblock %}
+
+{% block content %}
+  <h1>⭐ Stock</h1>
+
+  <!-- Search bar -->
+  <div class="search-panel">
+    <input
+      type="text"
+      id="fav-search"
+      placeholder="🔍 Find item to track..."
+      autocomplete="off"
+    >
+    <ul id="search-results" class="search-results"></ul>
+  </div>
+
+  <!-- Stock table -->
+  <table id="fav-table" class="fav-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Total Stock</th>
+        <th>Spread (net)</th>
+        <th>7d Volume</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- JS will append rows here -->
+    </tbody>
+  </table>
+
+  <script>
+    const input = document.getElementById('fav-search');
+    const results = document.getElementById('search-results');
+    const tbody = document.querySelector('#fav-table tbody');
+
+    // Search TP items
+    input.addEventListener('input', async () => {
+      const q = input.value.trim();
+      if (!q) { results.innerHTML = ''; return; }
+      const resp = await fetch(`/api/items/search?q=${encodeURIComponent(q)}`);
+      const items = await resp.json();
+      results.innerHTML = items.map(itm =>
+        `<li data-id="${itm.id}">${itm.name} <button class="add-fav">⭐</button></li>`
+      ).join('');
+    });
+
+    // Add to table
+    results.addEventListener('click', e => {
+      if (!e.target.matches('.add-fav')) return;
+      const li = e.target.closest('li');
+      const id = li.dataset.id;
+      const name = li.textContent.trim();
+      // Placeholder data; fill via API later
+      addRow({ id, name, stock: '–', spread: '–', volume: '–' });
+      li.remove();
+    });
+    const ids = Array.from(document.querySelectorAll('#fav-table tr'))
+           .map(r => r.dataset.id);
+fetch(`/api/volume?ids=${ids.join(',')}`)
+  .then(r => r.json())
+  .then(data => {
+    ids.forEach(id => {
+      const row = document.querySelector(`#fav-table tr[data-id='${id}']`);
+      const cell = row.children[3];  // assuming 0:Name,1:Stock,2:Spread,3:Volume
+      const series = (data[id]||[]).map(pt => pt.volume).join(', ');
+      cell.textContent = series || '–';
+    });
+  });
+
+    // Helper to append a row
+    function addRow(item) {
+      const row = document.createElement('tr');
+      row.dataset.id = item.id;
+      row.innerHTML = `
+        <td>${item.name}</td>
+        <td>${item.stock}</td>
+        <td>${item.spread}</td>
+        <td>${item.volume}</td>
+        <td><button class="remove-fav">❌</button></td>
+      `;
+      tbody.append(row);
+    }
+
+    // Remove row
+    tbody.addEventListener('click', e => {
+      if (e.target.matches('.remove-fav')) {
+        e.target.closest('tr').remove();
+      }
+    });
+  </script>
+{% endblock %}
