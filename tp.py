@@ -13,11 +13,16 @@ from flask import Flask, render_template, request, jsonify
 import os, requests, sqlite3
 from dotenv import load_dotenv
 from datetime import date
+from db import ensure_tables, persist_current_orders  # UPDATED import
 
 # Load environment variables from .env
 load_dotenv()
+ensure_tables()  # make sure tables exist on boot
 
-# Build auth header for GW2 API
+# Choose which user_id to write under (for now via .env; later via login/session)
+USER_ID = int(os.getenv('TP_USER_ID', '1'))
+
+# Build auth header for GW2 API (still using single .env key for now)
 def auth_header():
     key = os.getenv('GW2_KEY')
     if not key:
@@ -33,121 +38,14 @@ def gw2_get(path: str):
     resp = requests.get(url, headers=auth_header(), timeout=10)
     resp.raise_for_status()
     return resp.json()
-# Record order state changes into order_events table
-def update_order_events(buys, sells):
-    conn = sqlite3.connect('tp.sqlite')
-    c = conn.cursor()
 
-    # Create order_events table
-    c.execute(
-        '''
-        CREATE TABLE IF NOT EXISTS order_events (
-            event_id   INTEGER PRIMARY KEY AUTOINCREMENT,
-            order_id   INTEGER,
-            item_id    INTEGER NOT NULL,
-            event_type TEXT    NOT NULL CHECK(event_type IN ('placed','filled','canceled','relisted')),
-            quantity   INTEGER NOT NULL,
-            price      INTEGER NOT NULL,
-            fee        INTEGER,
-            timestamp  TEXT    DEFAULT CURRENT_TIMESTAMP
-        )
-        '''
-    )
-
-    # Current open orders tagged with side
-    current = {o['id']: {**o, 'side': 'buy'} for o in buys}
-    current.update({o['id']: {**o, 'side': 'sell'} for o in sells})
-    current_ids = set(current)
-
-    # Previously placed orders without a terminal event
-    c.execute(
-        '''
-        SELECT order_id, item_id, quantity, price
-        FROM order_events oe
-        WHERE event_type = 'placed'
-        AND NOT EXISTS (
-            SELECT 1 FROM order_events oe2
-            WHERE oe2.order_id = oe.order_id AND oe2.event_type != 'placed'
-        )
-        '''
-    )
-    active = {row[0]: {'item_id': row[1], 'quantity': row[2], 'price': row[3]} for row in c.fetchall()}
-
-    # Insert placed events for new orders
-    for oid, order in current.items():
-        if oid not in active:
-            fee = int(order['price'] * order['quantity'] * 0.05) if order['side'] == 'sell' else 0
-            c.execute(
-                '''
-                INSERT INTO order_events (order_id, item_id, event_type, quantity, price, fee)
-                VALUES (?, ?, 'placed', ?, ?, ?)
-                ''',
-                (oid, order['item_id'], order['quantity'], order['price'], fee)
-            )
-
-    # Determine orders that changed state
-    missing = set(active) - current_ids
-    canceled_info = []
-    if missing:
-        history_map = {}
-        for h in gw2_get('commerce/transactions/history/buys'):
-            history_map[h['id']] = (h, 'buy')
-        for h in gw2_get('commerce/transactions/history/sells'):
-            history_map[h['id']] = (h, 'sell')
-        for oid in missing:
-            prev = active[oid]
-            if oid in history_map:
-                h, side = history_map[oid]
-                fee = int(h['price'] * h['quantity'] * 0.10) if side == 'sell' else 0
-                c.execute(
-                    '''
-                    INSERT INTO order_events (order_id, item_id, event_type, quantity, price, fee)
-                    VALUES (?, ?, 'filled', ?, ?, ?)
-                    ''',
-                    (oid, h['item_id'], h['quantity'], h['price'], fee)
-                )
-            else:
-                c.execute(
-                    '''
-                    INSERT INTO order_events (order_id, item_id, event_type, quantity, price)
-                    VALUES (?, ?, 'canceled', ?, ?)
-                    ''',
-                    (oid, prev['item_id'], prev['quantity'], prev['price'])
-                )
-                canceled_info.append((oid, prev))
-
-    # Match canceled orders to new ones for relist detection
-    new_ids = current_ids - set(active)
-    by_item_qty = {}
-    for oid in new_ids:
-        o = current[oid]
-        key = (o['item_id'], o['quantity'])
-        by_item_qty.setdefault(key, []).append((oid, o))
-
-    for old_oid, prev in canceled_info:
-        key = (prev['item_id'], prev['quantity'])
-        lst = by_item_qty.get(key)
-        if lst:
-            new_oid, new_order = lst.pop(0)
-            fee = int(new_order['price'] * new_order['quantity'] * 0.05) if new_order['side'] == 'sell' else 0
-            c.execute(
-                '''
-                INSERT INTO order_events (order_id, item_id, event_type, quantity, price, fee)
-                VALUES (?, ?, 'relisted', ?, ?, ?)
-                ''',
-                (old_oid, prev['item_id'], new_order['quantity'], new_order['price'], fee)
-            )
-
-    conn.commit()
-    conn.close()
-
-# Fetch open buy/sell orders
+# Fetch open buy/sell orders and persist per-user
 def fetch_orders():
     buys  = gw2_get('commerce/transactions/current/buys')
     sells = gw2_get('commerce/transactions/current/sells')
-    update_order_events(buys, sells)
+    persist_current_orders(USER_ID, buys, sells)   # pass user_id
     return buys, sells
-    
+
 # Fetch delivery box summary
 def fetch_deliveries():
     return gw2_get('commerce/delivery')
@@ -163,7 +61,7 @@ def fetch_names(item_ids):
             names[entry['id']] = entry['name']
     return names
 
-# Upsert daily gold snapshot and item volumes
+# Upsert daily gold snapshot and item volumes (unchanged; global snapshots)
 def upsert_snapshot(grand_copper, item_ids):
     conn = sqlite3.connect('tp.sqlite')
     c = conn.cursor()
@@ -254,8 +152,7 @@ def index():
       FROM daily_snapshots
       ORDER BY snapshot_date DESC
       LIMIT 7
-    """
-    )
+    """)
     rows = c.fetchall()
     conn.close()
     dates, values = (zip(*rows[::-1]) if rows else ([], []))
