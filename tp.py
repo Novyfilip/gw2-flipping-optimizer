@@ -10,10 +10,14 @@ A Flask dashboard that shows:
 - Favorites stub and volume API
 """
 from flask import Flask, render_template, request, jsonify
+from flask import session, redirect, url_for  # for login/logout
+from users import verify_user, create_user, get_api_key
 import os, requests, sqlite3
 from dotenv import load_dotenv
 from datetime import date
-from db import ensure_tables, persist_current_orders  # UPDATED import
+from db import ensure_tables
+from orders import persist_current_orders
+from users import create_user, verify_user, get_api_key
 
 # Load environment variables from .env
 load_dotenv()
@@ -31,6 +35,8 @@ def auth_header():
 
 BASE = 'https://api.guildwars2.com/v2'
 app  = Flask(__name__)
+#for user management, use a secret key for session signing
+app.secret_key = os.getenv("FLASK_SECRET", "dev-secret")
 
 # Generic GET helper
 def gw2_get(path: str):
@@ -38,6 +44,7 @@ def gw2_get(path: str):
     resp = requests.get(url, headers=auth_header(), timeout=10)
     resp.raise_for_status()
     return resp.json()
+
 
 # Fetch open buy/sell orders and persist per-user
 def fetch_orders():
@@ -239,6 +246,33 @@ def api_volume():
     for lst in out.values():
         lst.reverse()
     return jsonify(out)
+##login/logout routes
+
+
+@app.post('/login')
+def login():
+    uid = verify_user(request.form.get('email',''), request.form.get('password',''))
+    if uid: session['user_id'] = uid
+    return redirect(url_for('index'))
+
+@app.post('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+@app.get('/register')
+def register_form():
+    return render_template('register.html')
+
+@app.post('/register')
+def register_submit():
+    email = request.form.get('email','').strip()
+    pw    = request.form.get('password','')
+    key   = request.form.get('api_key','').strip()
+    if email and pw and key:
+        session['user_id'] = create_user(email, pw, key)
+    return redirect(url_for('index'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)

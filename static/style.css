@@ -131,3 +131,11 @@ td:first-child {
     flex: 1 1 100%;
   }
 }
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr) 140px; /* 4 totals + sparkline slot */
+  gap: var(--gap);
+  align-items: center;
+}
+
+

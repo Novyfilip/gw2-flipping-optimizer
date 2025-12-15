@@ -30,5 +30,18 @@
   <div class="content">
     {% block content %}{% endblock %}
   </div>
+  {% if session.get('user_id') %}
+  <form action="{{ url_for('logout') }}" method="post" style="display:flex;gap:.5rem;">
+    <span>Logged in</span>
+    <button type="submit">Logout</button>
+  </form>
+{% else %}
+  <form action="{{ url_for('login') }}" method="post" style="display:flex;gap:.5rem;">
+    <input name="email" placeholder="email" required>
+    <input name="password" type="password" placeholder="password" required>
+    <button type="submit">Login</button>
+    <a href="{{ url_for('register_form') }}">Register</a>
+  </form>
+{% endif %}
 </body>
 </html>
