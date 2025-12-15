@@ -1,0 +1,65 @@
+{
+  "Adam": {
+    "item_name": "Adam",
+    "lambda_": 104.50499251915207,
+    "rho_": 720.3758205441466,
+    "n_observations": 5,
+    "median_fill_hours": 104.44,
+    "mean_fill_hours": 104.42999999999999,
+    "std_fill_hours": 0.16232683080748156
+  },
+  "Deathwish": {
+    "item_name": "Deathwish",
+    "lambda_": 16.254662763251222,
+    "rho_": 13.806775239778908,
+    "n_observations": 5,
+    "median_fill_hours": 15.35,
+    "mean_fill_hours": 15.732,
+    "std_fill_hours": 1.1429654412973291
+  },
+  "Demure Dye": {
+    "item_name": "Demure Dye",
+    "lambda_": 35.55390812210794,
+    "rho_": 9.372957796079735,
+    "n_observations": 3,
+    "median_fill_hours": 35.94,
+    "mean_fill_hours": 33.52333333333333,
+    "std_fill_hours": 5.97362815492673
+  },
+  "Serpentstone": {
+    "item_name": "Serpentstone",
+    "lambda_": 12.638814043835971,
+    "rho_": 12.273052987406055,
+    "n_observations": 4,
+    "median_fill_hours": 12.9,
+    "mean_fill_hours": 12.0175,
+    "std_fill_hours": 1.8266613442744848
+  },
+  "Spindrift Dagger": {
+    "item_name": "Spindrift Dagger",
+    "lambda_": 15.685384405613831,
+    "rho_": 3.382788843238316,
+    "n_observations": 4,
+    "median_fill_hours": 14.46,
+    "mean_fill_hours": 14.0,
+    "std_fill_hours": 5.525341618397906
+  },
+  "Spindrift Hammer": {
+    "item_name": "Spindrift Hammer",
+    "lambda_": 13.06369762842794,
+    "rho_": 2.1022242889204366,
+    "n_observations": 3,
+    "median_fill_hours": 7.35,
+    "mean_fill_hours": 11.469999999999999,
+    "std_fill_hours": 7.283769628427302
+  },
+  "Toy Sword Skin": {
+    "item_name": "Toy Sword Skin",
+    "lambda_": 8.485460297469949,
+    "rho_": 12.074855737318584,
+    "n_observations": 10,
+    "median_fill_hours": 8.51,
+    "mean_fill_hours": 8.102,
+    "std_fill_hours": 0.9591292347170369
+  }
+}
