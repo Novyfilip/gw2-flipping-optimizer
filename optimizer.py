@@ -1,18 +1,42 @@
 """
 optimizer.py — Portfolio optimizer for GW2 Trading Post flipping.
 
-Improved formulation:
-  Maximize: Σ (sell_i - buy_i) × fill_prob_i × qty_i
-  Subject to:
-    Σ (buy_i × qty_i) ≤ budget
-    qty_i ≤ market_depth_i (available at current buy price)
-    qty_i ≤ expected_sales_in_horizon (don't buy what won't sell)
-    buy_i × qty_i ≥ min_order_gold (for allocated items)
-    qty_i ∈ {0, 1, 2, ...}
+GW2 fee structure:
+  - Buy order: no fee
+  - Sell order: 5% listing fee (non-refundable) + 10% exchange fee on sale
+  - Net profit per unit: sell_price * 0.85 - buy_price
+
+Fill probability sources (priority order):
+  1. Weibull model from item_fill_models.json (if fitted)
+  2. Volume-based heuristic: P(fill) = min(0.9, sell_volume / 500)
+     High-volume items (500+ listed) → high probability
+     Low-volume items (10 listed) → low probability
 """
 import numpy as np
 from scipy.optimize import linprog
 from models import fill_probability
+
+
+def estimate_fill_prob(sell_qty, time_horizon_days=1):
+    """Volume-based fill probability when no Weibull model exists.
+
+    Rationale: sell_qty is the number of units CURRENTLY listed at the lowest
+    sell price. High sell_qty = liquid market = high fill probability.
+    Sell_qty of 500+ → 0.9, 10 → 0.02. Scales linearly in between.
+    Time horizon modifier: longer horizon → higher probability.
+    """
+    base = min(0.9, sell_qty / 500)
+    # Diminishing returns for longer horizons
+    horizon_factor = 1 - np.exp(-time_horizon_days / 3)
+    return min(0.95, base + (1 - base) * horizon_factor * 0.5)
+
+
+def net_profit_per_unit(buy_price, sell_price):
+    """Real profit after GW2 fees.
+
+    Buy: pay buy_price. Sell: receive sell_price minus 15% total fees.
+    """
+    return sell_price * 0.85 - buy_price
 
 
 def build_opportunities(models, prices, time_horizon_days=1,
@@ -20,16 +44,7 @@ def build_opportunities(models, prices, time_horizon_days=1,
                          min_order_gold=0.01):
     """Build tradeable item list from current prices + fill models.
 
-    Args:
-        models: dict {item_id or item_name: {lambda_, rho_, ...}}
-        prices: dict {item_id: {buy_price, sell_price, buy_qty, sell_qty}}
-        time_horizon_days: how long you're willing to hold
-        min_margin: minimum (sell-buy)/buy (e.g., 0.05 = 5%)
-        min_fill_prob: minimum P(fill within horizon)
-        min_order_gold: minimum position value in gold (skip pennies)
-
-    Returns:
-        list of dicts sorted by expected_profit_per_gold desc
+    Returns list sorted by expected_profit_per_gold descending.
     """
     min_order_copper = min_order_gold * 10000
     opportunities = []
@@ -38,40 +53,41 @@ def build_opportunities(models, prices, time_horizon_days=1,
         buy_price = p['buy_price']
         sell_price = p['sell_price']
         buy_qty = p['buy_qty']
+        sell_qty = p['sell_qty']
 
         if buy_price <= 0 or sell_price <= 0:
             continue
 
-        # Skip items where max position value < minimum
         if buy_price * buy_qty < min_order_copper:
             continue
 
-        margin = (sell_price - buy_price) / buy_price
+        # Margin on real (post-fee) profit
+        profit = net_profit_per_unit(buy_price, sell_price)
+        if profit <= 0:
+            continue
+        margin = profit / buy_price
         if margin < min_margin:
             continue
 
-        # Look up fill model
+        # Fill probability: Weibull model > volume heuristic
         item_id = int(item_id_str)
         model = models.get(str(item_id)) or models.get(item_id)
-        if model is None:
-            prob = 0.5  # default: no data yet
-        else:
+        if model is not None:
             prob = fill_probability(
                 model['lambda_'], model['rho_'],
                 time_horizon_days, quantity=1
             )
+        else:
+            prob = estimate_fill_prob(sell_qty, time_horizon_days)
 
         if prob < min_fill_prob:
             continue
 
-        profit_per_unit = sell_price - buy_price
+        expected_profit_per_gold = (profit * prob) / buy_price
 
-        # Cap quantity: don't buy more than market can absorb in the horizon
-        # Low fill_prob items get stricter caps (Svaard's recipes: prob=0.1 → cap at 10%)
-        sellable_in_horizon = max(1, int(buy_qty * prob))
+        # Don't buy more than the market can absorb in the horizon
+        sellable_in_horizon = max(1, int(sell_qty * prob))
         effective_max_qty = min(buy_qty, sellable_in_horizon, 250)
-
-        expected_profit_per_gold = (profit_per_unit * prob) / buy_price
 
         opportunities.append({
             'item_id': item_id,
@@ -79,10 +95,11 @@ def build_opportunities(models, prices, time_horizon_days=1,
             'sell_price': sell_price,
             'margin': margin,
             'fill_prob': prob,
-            'profit_per_unit': profit_per_unit,
+            'profit_per_unit': profit,
             'expected_profit_per_gold': expected_profit_per_gold,
             'max_qty': effective_max_qty,
             'market_depth': buy_qty,
+            'sell_volume': sell_qty,
         })
 
     opportunities.sort(key=lambda x: x['expected_profit_per_gold'], reverse=True)
@@ -91,10 +108,7 @@ def build_opportunities(models, prices, time_horizon_days=1,
 
 def greedy_allocate(opportunities, budget_gold, max_items=50,
                      min_order_gold=0.01):
-    """Greedy allocation: buy best items until budget exhausted.
-
-    Immediately removes items that fall below min_order_gold after allocation.
-    """
+    """Greedy allocation: buy best items until budget exhausted."""
     budget_copper = budget_gold * 10000
     min_order_copper = min_order_gold * 10000
     allocations = {}
@@ -106,11 +120,8 @@ def greedy_allocate(opportunities, budget_gold, max_items=50,
         max_afford = budget_copper // opp['buy_price']
         qty = min(max_afford, opp['max_qty'])
 
-        # Skip if we can't afford even 1 unit
         if qty <= 0:
             continue
-
-        # Skip if position value below minimum
         if qty * opp['buy_price'] < min_order_copper:
             continue
 
@@ -122,10 +133,7 @@ def greedy_allocate(opportunities, budget_gold, max_items=50,
 
 
 def lp_allocate(opportunities, budget_gold):
-    """Linear program via scipy. No cardinality or min-order constraints.
-
-    Use greedy for practical recommendations; LP for sanity-checking totals.
-    """
+    """Linear program via scipy. No cardinality constraint."""
     n = len(opportunities)
     if n == 0:
         return {}
@@ -152,20 +160,7 @@ def lp_allocate(opportunities, budget_gold):
 def optimize(models, prices, budget_gold=1000, time_horizon_days=1,
              min_margin=0.05, min_fill_prob=0.0, max_items=50,
              min_order_gold=0.01, mode='greedy'):
-    """Main entry point.
-
-    Args:
-        budget_gold: available gold to deploy
-        time_horizon_days: how long before you want items sold
-        min_margin: minimum profit margin (fraction, e.g. 0.05 = 5%)
-        min_fill_prob: minimum P(sells within horizon)
-        max_items: max distinct items (clicking limit)
-        min_order_gold: minimum position value per item (skip pennies)
-        mode: 'greedy' (recommended) or 'lp' (experimental)
-
-    Returns:
-        dict with allocations, summary table, totals
-    """
+    """Main entry point."""
     opps = build_opportunities(models, prices, time_horizon_days,
                                 min_margin, min_fill_prob, min_order_gold)
 

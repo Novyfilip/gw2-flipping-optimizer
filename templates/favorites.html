@@ -1,4 +1,92 @@
-<!doctype html><html><head><title>Favorites</title></head><body>
-<nav><a href="/">Dashboard</a> | <a href="/plan">Recommender</a></nav>
-<h1>Favorites</h1><p>Coming soon.</p>
-</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Favorites — GW2 TP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .star-btn {
+      background: none; border: none; cursor: pointer;
+      font-size: 1.2rem; padding: 0 0.3rem;
+    }
+    .star-btn:hover { transform: scale(1.3); }
+    .item-row.starred { background: rgba(241,196,15,0.15); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.4rem 0.5rem; border: 1px solid var(--panel-border); font-size: 0.9rem; }
+    th { background: #e4d598; position: sticky; top: 0; }
+    td { text-align: right; }
+    td:first-child, td:nth-child(2) { text-align: left; }
+    .search-bar { width: 100%; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px; border: 1px solid var(--panel-border); }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-links">
+      <a href="/" class="nav-link">📊 Dashboard</a>
+      <a href="/plan" class="nav-link">🛒 Recommender</a>
+      <a href="/favorites" class="nav-link">⭐ Favorites</a>
+    </div>
+  </nav>
+
+  <div class="content">
+    <h1>All Tracked Items <small style="color:#888;">({{ items|length }})</small></h1>
+
+    {% if error %}
+    <div class="panel" style="background:rgba(255,100,100,0.4);">{{ error }}</div>
+    {% endif %}
+
+    <input class="search-bar" placeholder="Filter items…" oninput="
+      const f = this.value.toLowerCase();
+      document.querySelectorAll('.item-row').forEach(r => {
+        r.style.display = r.querySelector('td').textContent.toLowerCase().includes(f) ? '' : 'none';
+      });
+    ">
+
+    <div style="max-height:70vh;overflow-y:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px;"></th>
+          <th>Item</th>
+          <th>Buy</th>
+          <th>Sell</th>
+          <th>Margin</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for item in items %}
+        <tr class="item-row{% if item.starred %} starred{% endif %}">
+          <td>
+            <form method="post" action="/favorites/toggle/{{ item.item_id }}" style="display:inline;">
+              <button class="star-btn" title="Toggle favorite">
+                {% if item.starred %}⭐{% else %}☆{% endif %}
+              </button>
+            </form>
+          </td>
+          <td>{{ item.name }}</td>
+          <td>
+            {% if item.buy_price > 0 %}
+              {% if item.buy_price >= 10000 %}{{ item.buy_price//10000 }}🥇{% endif %}
+              {% if item.buy_price >= 100 %}{{ (item.buy_price//100)%100 }}🥈{% endif %}
+              {{ item.buy_price%100 }}🥉
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if item.sell_price > 0 %}
+              {% if item.sell_price >= 10000 %}{{ item.sell_price//10000 }}🥇{% endif %}
+              {% if item.sell_price >= 100 %}{{ (item.sell_price//100)%100 }}🥈{% endif %}
+              {{ item.sell_price%100 }}🥉
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if item.margin > 0 %}{{ "%.1f"|format(item.margin * 100) }}%{% else %}—{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</body>
+</html>

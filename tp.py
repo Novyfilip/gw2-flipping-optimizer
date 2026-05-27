@@ -2,25 +2,23 @@
 tp.py — GW2 Trading Post Dashboard + Recommender
 Flask app with live orders, delivery box, gold tracking, and portfolio optimizer.
 """
-from flask import Flask, render_template, request, jsonify
-from flask import session, redirect, url_for
-from users import verify_user, create_user, get_api_key
+from flask import Flask, render_template, request, session, redirect, url_for
+from users import verify_user, create_user
 import os, requests, sqlite3, json
 from dotenv import load_dotenv
-from datetime import date, datetime
+from datetime import date
 from db import ensure_tables
 from orders import persist_current_orders
 from optimizer import optimize as run_optimizer
-from models import load_models, fill_probability
+from models import load_models
 import pandas as pd
 
 load_dotenv()
 ensure_tables()
 
 USER_ID = int(os.getenv('TP_USER_ID', '1'))
-
 BASE = 'https://api.guildwars2.com/v2'
-app  = Flask(__name__)
+app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET", "dev-secret")
 
 
@@ -39,7 +37,7 @@ def gw2_get(path):
 
 
 def fetch_orders():
-    buys  = gw2_get('commerce/transactions/current/buys')
+    buys = gw2_get('commerce/transactions/current/buys')
     sells = gw2_get('commerce/transactions/current/sells')
     persist_current_orders(USER_ID, buys, sells)
     return buys, sells
@@ -63,37 +61,42 @@ def fetch_names(item_ids):
 def upsert_snapshot(grand_copper, item_ids):
     conn = sqlite3.connect('tp.sqlite')
     c = conn.cursor()
-
     c.execute('''CREATE TABLE IF NOT EXISTS daily_snapshots (
         snapshot_date TEXT PRIMARY KEY, grand_copper INTEGER NOT NULL)''')
-
     today = date.today().isoformat()
     c.execute("""INSERT INTO daily_snapshots (snapshot_date, grand_copper)
         VALUES (?, ?) ON CONFLICT(snapshot_date) DO UPDATE
         SET grand_copper=excluded.grand_copper""", (today, grand_copper))
-
-    c.execute('''CREATE TABLE IF NOT EXISTS daily_item_volume (
-        item_id INTEGER, snapshot_date TEXT, volume INTEGER,
-        PRIMARY KEY(item_id, snapshot_date))''')
-
     if item_ids:
         ids_str = ','.join(map(str, item_ids))
-        prices = gw2_get(f"commerce/prices?ids={ids_str}")
-        for entry in prices:
-            vid = entry['id']
-            vol = entry.get('volume', 0)
-            c.execute("""INSERT INTO daily_item_volume (item_id, snapshot_date, volume)
-                VALUES (?, ?, ?) ON CONFLICT(item_id, snapshot_date)
-                DO UPDATE SET volume=excluded.volume""", (vid, today, vol))
-
+        try:
+            prices = gw2_get(f"commerce/prices?ids={ids_str}")
+            c.execute('''CREATE TABLE IF NOT EXISTS daily_item_volume (
+                item_id INTEGER, snapshot_date TEXT, volume INTEGER,
+                PRIMARY KEY(item_id, snapshot_date))''')
+            for entry in prices:
+                c.execute("""INSERT INTO daily_item_volume
+                    (item_id, snapshot_date, volume) VALUES (?, ?, ?)
+                    ON CONFLICT(item_id, snapshot_date)
+                    DO UPDATE SET volume=excluded.volume""",
+                    (entry['id'], today, entry.get('volume', 0)))
+        except Exception:
+            pass  # volume tracking is non-critical
     conn.commit()
     conn.close()
 
 
 @app.route('/')
 def index():
-    raw_buys, raw_sells = fetch_orders()
-    delivery_data = fetch_deliveries()
+    try:
+        raw_buys, raw_sells = fetch_orders()
+        delivery_data = fetch_deliveries()
+    except Exception as e:
+        return render_template('index.html', error=f"GW2 API unavailable: {e}",
+                                buys=[], sells=[], deliveries=[],
+                                total_buy_copper=0, total_sell_copper=0,
+                                total_delivery_copper=0, grand_total_copper=0)
+
     coins = delivery_data.get('coins', 0)
     raw_deliveries_items = delivery_data.get('items', [])
 
@@ -111,14 +114,6 @@ def index():
     ids |= delivery_ids
 
     upsert_snapshot(grand_total_copper, ids)
-
-    conn = sqlite3.connect('tp.sqlite')
-    c = conn.cursor()
-    c.execute("SELECT snapshot_date, grand_copper FROM daily_snapshots ORDER BY snapshot_date DESC LIMIT 7")
-    rows = c.fetchall()
-    conn.close()
-    dates = [r[0] for r in rows[::-1]]
-    values = [r[1] / 10000 for r in rows[::-1]]
 
     name_map = fetch_names(ids)
 
@@ -149,8 +144,11 @@ def plan():
     if budget <= 0:
         try:
             wallet = gw2_get('account/wallet')
-            budget = sum(w['value'] for w in wallet) / 10000
-            budget = round(budget, 1)
+            raw_gold = sum(w['value'] for w in wallet) / 10000
+            # Subtract gold already locked in buy orders
+            orders_buys = gw2_get('commerce/transactions/current/buys')
+            locked = sum(o['price'] * o['quantity'] for o in orders_buys) / 10000
+            budget = round(max(0, raw_gold - locked), 1)
         except Exception:
             budget = 1000
 
@@ -196,9 +194,66 @@ def plan():
         budget=int(budget), horizon=horizon,
         min_margin=int(min_margin*100), min_fill_prob=int(min_fill_prob*100))
 
+
 @app.route('/favorites')
 def favorites():
-    return render_template('favorites.html')
+    try:
+        catalog = pd.read_csv('data/my_trading_items.csv')
+    except FileNotFoundError:
+        return render_template('favorites.html', items=[], error='No item catalog found.')
+
+    # Fetch live prices from GW2 API (batched, max 200 per call)
+    live_prices = {}
+    item_ids = catalog['item_id'].tolist()
+    for i in range(0, len(item_ids), 200):
+        chunk = item_ids[i:i+200]
+        try:
+            data = gw2_get(f"commerce/prices?ids={','.join(map(str, chunk))}")
+            for entry in data:
+                live_prices[entry['id']] = {
+                    'buy_price':  entry['buys']['unit_price'],
+                    'sell_price': entry['sells']['unit_price'],
+                }
+        except Exception:
+            continue  # partial failure: skip this chunk, keep going
+
+    # Load starred items
+    conn = sqlite3.connect('tp.sqlite')
+    starred = set(r[0] for r in conn.execute(
+        "SELECT item_id FROM favorites WHERE user_id=?", (USER_ID,)))
+    conn.close()
+
+    # Build item list
+    items = []
+    for _, row in catalog.iterrows():
+        item_id = int(row['item_id'])
+        p = live_prices.get(item_id, {})
+        buy_price = p.get('buy_price', 0)
+        sell_price = p.get('sell_price', 0)
+        margin = (sell_price - buy_price) / buy_price if buy_price > 0 else 0
+
+        items.append({
+            'item_id': item_id,
+            'name': row['item_name'],
+            'buy_price': buy_price,
+            'sell_price': sell_price,
+            'margin': margin,
+            'starred': item_id in starred,
+        })
+
+    items.sort(key=lambda x: (not x['starred'], -x['margin']))
+    return render_template('favorites.html', items=items)
+
+
+@app.post('/favorites/toggle/<int:item_id>')
+def toggle_favorite(item_id):
+    from favorites import add_fav, remove_fav, list_favs
+    starred = list_favs(USER_ID)
+    if item_id in starred:
+        remove_fav(USER_ID, item_id)
+    else:
+        add_fav(USER_ID, item_id)
+    return redirect(url_for('favorites'))
 
 
 @app.post('/login')

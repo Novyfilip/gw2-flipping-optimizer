@@ -2,15 +2,28 @@
 
 ## Core Data Advantage
 
-The official GW2 API + sites like gw2bltc only expose **current listing prices and volumes**. Everyone has this.
+Public GW2 API + sites like gw2bltc only expose **current listing prices and volumes**. Everyone has this.
 
-This app's edge: **fill velocity data**. How long does a specific item take to sell? In what batch sizes? Nobody publishes this. It comes exclusively from your completed transaction history — either from gw2efficiency exports or the official `/v2/commerce/transactions/history/` endpoint (last 90 days, API-key scoped).
-
-What you get: `time_to_fill_hours`, `quantity` per fill, `price` per fill. This feeds the Weibull survival models. Without it, any optimizer is just guessing from margins. With it, you know if an item *will actually sell* in your time horizon.
+This app's edge: **fill velocity data**. How long does a specific item take to sell? In what batch sizes? Nobody publishes this. It comes exclusively from your completed transaction history via `/v2/commerce/transactions/history/` (last 90 days, API-key scoped).
 
 **Daily price tracker:** public data — buy/sell listing prices and volumes  
 **Transaction fetcher:** private data — actual fill times and quantities  
-**Weibull models:** `P(sells within T days | item, quantity)` — the edge
+**Weibull models:** `P(sells within T days | item)` — the edge  
+**Optimizer:** budget + horizon → optimal buy list with real fees
+
+## ML Pipeline (now automated)
+
+```
+Daily GitHub Action
+  ├── track_prices.py          → item_prices table (price history)
+  └── fetch_transaction_history.py → sell_history CSVs (fill times)
+
+Manual (when enough data accumulated):
+  python fit_models.py          → data/item_fill_models.json (Weibull params)
+
+Flask /plan route:
+  loads models → loads prices → runs optimizer → buy recommendations
+```
 
 ## Architecture
 
@@ -18,81 +31,67 @@ What you get: `time_to_fill_hours`, `quantity` per fill, `price` per fill. This 
 tp.py                    Flask: dashboard (/), recommender (/plan), auth
 ├── orders.py            Order persistence & fill detection
 ├── db.py                SQLite: users, open_orders, fills, item_prices
-├── track_prices.py      Daily price snapshot for all known items
+├── track_prices.py      Daily price snapshot (catalog + open orders)
 ├── fetch_transaction_history.py  Completed transaction CSV export
+├── fit_models.py        Fit Weibull models from sell history → JSON
 ├── models.py            Weibull: fit, load, fill_probability()
-├── optimizer.py         Greedy + LP: budget → buy list
+├── optimizer.py         Greedy allocation with fee-aware profit calc
 ├── users.py             Auth (PBKDF2)
 ├── favorites.py         Favorites stub
 │
 ├── data/my_trading_items.csv     760+ items (id, name, volume)
 ├── data/sell_orders/             Historical sell transactions (fill times)
 ├── data/buy_orders/              Historical buy transactions
+├── data/item_fill_models.json    Fitted Weibull params (from fit_models.py)
 │
-├── templates/index.html    Dashboard
-├── templates/plan.html     Recommender with budget/horizon controls
+├── fill_model_v_batchFillProb.ipynb  Notebook for explorator y modeling
+├── fill_model_v0_1.ipynb, v0_2.ipynb  Earlier iterations
+├── Optimizer.ipynb               LP skeleton (replaced by optimizer.py)
+├── item catalogue.py             gw2efficiency data analysis utility
 │
-└── .github/workflows/daily-track.yml  (needs setup via GitHub web UI)
+├── templates/
+│   ├── index.html     Dashboard with buy/sell/delivery tables
+│   ├── plan.html      Recommender: budget/horizon → buy list
+│   ├── favorites.html Stub
+│   └── register.html  User registration
+│
+└── .github/workflows/daily-track.yml  Daily price + transaction collection
 ```
 
-## What Works
+## Optimizer Details
 
-- Dashboard: live orders, delivery box, gold totals (medal format)
-- Recommender: budget + horizon → ranked buy list
-- Price tracker: snapshots prices for all known items
-- Order fill detection: quantity delta across polls
+**Fee structure (now correct):**
+- Buy: no fee
+- Sell: 5% listing fee + 10% exchange fee = 15% total
+- Net profit = sell_price × 0.85 - buy_price
+
+**Fill probability (two-tier):**
+1. Weibull model from `item_fill_models.json` (if fitted)
+2. Volume-based heuristic: `P(fill) = min(0.9, sell_volume / 500)` with time horizon modifier
+
+**Quantity modeling (to be implemented):**
+- 1 unit vs 100 units fill at different rates
+- Need per-item quantity bucket models
+- Currently uses `sellable_in_horizon = max(1, sell_volume × fill_prob)`
 
 ## What's Left
 
-### 1. Run the notebook to fit Weibull models
-- `fill_model_v_batchFillProb.ipynb` uses sell history CSVs
-- Export fitted params → `data/item_fill_models.json`
-- Currently optimizer uses default 0.5 fill_prob — fine for ranking, inaccurate for expected profit
+### 1. Run fit_models.py once enough sell history accumulates
+- Needs multiple CSV files with varied fill times
+- `python fit_models.py --min-obs 5`
+- Then optimizer switches from heuristic to real Weibull predictions
 
-### 2. Wire transaction history into the daily workflow
-- `fetch_transaction_history.py` fetches last 50 completed transactions per type
-- Add to the GitHub Action so it accumulates sell history automatically
-- This builds the training data for Weibull models over time
+### 2. Quantity effects
+- Currently placeholder `quantity_factor` in models.py
+- Needs Weibull regression with quantity as covariate
+- Or separate models per quantity bucket
 
-## Modeling Fill Times (The Edge)
-
-Every item has a right-skewed fill-time distribution. Most orders fill fast, but some orders sit for days or weeks. Weibull captures this shape.
-
-### Quantity Effects
-
-Cheap commodities (silk, Elder Wood, T5 mats) — 10 vs 250 units makes little difference to fill time. The market absorbs volume easily.
-
-Expensive items (Zhed's Coat, legendary components, rare skins, dyes) — steep diminishing returns. 1 unit might sell in 2 hours. 10 units might take 2 weeks. The buyer pool is thin.
-
-### Optimal Order Size
-
-The ideal quantity per order is where **marginal expected profit per unit** starts dropping below alternative uses of capital:
-
-```
-For item X at quantity q:
-  profit_per_unit = sell_price - buy_price
-  fill_prob(q) = P(sells within T days | batch size q)
-  expected_profit = profit_per_unit × q × fill_prob(q)
-
-Optimal q = argmax expected_profit  (subject to budget)
-```
-
-For silk: optimal q might be capped by market depth (buy order volume), not fill probability — it always sells.
-For Zhed's Coat: optimal q is where fill_prob drops below your threshold — the model tells you "buying 5 is smart, buying 20 is tying up capital for a week."
-
-### Current State
-
-- `calculate_fill_probability()` has a placeholder `quantity_factor = 1 / (1 + 0.05 × q)` — this is a guess
-- The Weibull model in the notebook fits on individual transaction rows — each row is a single fill event with its own quantity
-- **What's needed:** fit a Weibull regression with quantity as a covariate, or fit separate Weibull models per quantity bucket (1-5 units, 6-20, 21-50, 51+)
-- This requires enough varied transaction data per item — the daily fetcher accumulates this over time
-
-### 4. `/history` page
-- Price trends over time (buy/sell/margin)
+### 3. /history page
+- Price trends over time
 - Portfolio growth chart
 - Fill rate tracker
 
-### 5. Favorites UI
+### 4. Favorites UI
 
 ## Setup
 
@@ -101,4 +100,9 @@ conda activate dl-env
 pip install flask requests python-dotenv pandas scipy lifelines
 python track_prices.py    # first price snapshot
 python tp.py              # start dashboard
+```
+
+After accumulating sell history:
+```
+python fit_models.py
 ```

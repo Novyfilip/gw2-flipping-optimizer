@@ -1,13 +1,13 @@
 """
-track_prices.py — Daily price snapshot for all items ever traded.
-Snapshots buy/sell prices from the GW2 API and stores in tp.sqlite.
+track_prices.py — Daily price snapshot for all tracked items.
 
-Usage:
-    python track_prices.py
+Sources (union of):
+  1. Items currently in open_orders (actively trading)
+  2. Items from data/my_trading_items.csv (full catalog, always tracked)
+
+Retries up to 3 times if GW2 API is unavailable.
 """
-import sqlite3
-import requests
-import os
+import sqlite3, requests, os, time, csv
 from datetime import date
 from dotenv import load_dotenv
 
@@ -16,33 +16,59 @@ load_dotenv()
 BASE = 'https://api.guildwars2.com/v2'
 HEADERS = {'Authorization': f"Bearer {os.getenv('GW2_KEY')}"}
 DB = 'tp.sqlite'
+MAX_RETRIES = 3
 
 
 def get_known_items():
-    """Return every distinct item_id from open_orders."""
-    conn = sqlite3.connect(DB)
-    rows = conn.execute("SELECT DISTINCT item_id FROM open_orders").fetchall()
-    conn.close()
-    return [r[0] for r in rows]
+    """Union of open_orders items + catalog items."""
+    item_ids = set()
+
+    # Source 1: items currently in open orders
+    try:
+        conn = sqlite3.connect(DB)
+        rows = conn.execute("SELECT DISTINCT item_id FROM open_orders").fetchall()
+        conn.close()
+        item_ids.update(r[0] for r in rows)
+    except sqlite3.OperationalError:
+        pass  # table doesn't exist yet
+
+    # Source 2: full trading catalog
+    try:
+        with open('data/my_trading_items.csv', 'r') as f:
+            reader = csv.DictReader(f)
+            item_ids.update(int(row['item_id']) for row in reader)
+    except FileNotFoundError:
+        pass
+
+    return sorted(item_ids)
 
 
 def fetch_prices(item_ids):
-    """Batch-fetch current buy/sell prices (max 200 per call)."""
+    """Batch-fetch current buy/sell prices with retries."""
     prices = {}
     for i in range(0, len(item_ids), 200):
         chunk = item_ids[i:i + 200]
         ids_str = ','.join(map(str, chunk))
-        resp = requests.get(
-            f'{BASE}/commerce/prices?ids={ids_str}',
-            headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-        for entry in resp.json():
-            prices[entry['id']] = {
-                'buy_price':  entry['buys']['unit_price'],
-                'buy_qty':    entry['buys']['quantity'],
-                'sell_price': entry['sells']['unit_price'],
-                'sell_qty':   entry['sells']['quantity'],
-            }
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                resp = requests.get(
+                    f'{BASE}/commerce/prices?ids={ids_str}',
+                    headers=HEADERS, timeout=15)
+                resp.raise_for_status()
+                for entry in resp.json():
+                    prices[entry['id']] = {
+                        'buy_price':  entry['buys']['unit_price'],
+                        'buy_qty':    entry['buys']['quantity'],
+                        'sell_price': entry['sells']['unit_price'],
+                        'sell_qty':   entry['sells']['quantity'],
+                    }
+                break
+            except Exception as e:
+                if attempt < MAX_RETRIES - 1:
+                    time.sleep(5 * (attempt + 1))
+                else:
+                    print(f"  Failed after {MAX_RETRIES} attempts: {e}")
     return prices
 
 
@@ -74,7 +100,7 @@ def main():
     ensure_table()
     items = get_known_items()
     if not items:
-        print("No items in open_orders yet. Run the dashboard first.")
+        print("No items found. Run the dashboard first, or add data/my_trading_items.csv.")
         return
     print(f"Tracking {len(items)} items...")
     prices = fetch_prices(items)

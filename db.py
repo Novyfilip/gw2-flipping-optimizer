@@ -49,4 +49,10 @@ def ensure_tables():
             exchange_fee INTEGER NOT NULL DEFAULT 0
         )""")
 
+        cur.execute("""CREATE TABLE IF NOT EXISTS favorites (
+            user_id INTEGER NOT NULL,
+            item_id INTEGER NOT NULL,
+            PRIMARY KEY (user_id, item_id)
+        )""")
+
         conn.commit()

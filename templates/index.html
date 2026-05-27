@@ -19,6 +19,11 @@
   </nav>
 
   <div class="content">
+    {% if error %}
+    <div class="panel" style="background:rgba(255,100,100,0.4);margin-bottom:1rem;text-align:center;">
+      {{ error }}
+    </div>
+    {% endif %}
     <header class="overview-grid">
       <div><strong>Total BUY locked:</strong>
         {% if total_buy_copper >= 10000 %}{{ total_buy_copper//10000 }}🥇{% endif %}
@@ -77,6 +82,24 @@
         </table>
       </section>
     </div>
+
+    {% if deliveries %}
+    <section class="panel" style="margin-top:1rem;">
+      <h2>Delivery Box</h2>
+      <table>
+        <thead><tr><th>Name</th><th>Qty</th><th>Price</th></tr></thead>
+        <tbody>
+        {% for d in deliveries %}
+          <tr>
+            <td>{{d.name}}</td>
+            <td>{{d.quantity}}</td>
+            <td>{% if d.price>=10000 %}{{d.price//10000}}🥇{% endif %}{% if d.price>=100 %}{{(d.price//100)%100}}🥈{% endif %}{{d.price%100}}🥉</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
   </div>
 
   <script>
