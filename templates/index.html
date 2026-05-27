@@ -1,376 +1,92 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
+  <title>GW2 TP Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Filip Nový — AI/ML Engineer. GraphRAG, LLM systems, applied machine learning.">
-  <title>Filip Nový</title>
-  <style>
-    /* ——— Reset ——— */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
-
-    /* ——— Colors ——— */
-    :root {
-      --bg:        #1a1815;
-      --bg-card:   #24221e;
-      --text:      #e8e0d5;
-      --text-dim:  #9e9589;
-      --accent:    #c8960c;
-      --accent-hover: #e0a820;
-      --border:    #3a3630;
-    }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      line-height: 1.7;
-      font-size: 16px;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { color: var(--accent-hover); }
-
-    .container {
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 0 1.5rem;
-    }
-
-    /* ——— Header ——— */
-    header {
-      padding: 3rem 0 2rem;
-    }
-    .header-inner {
-      display: flex;
-      align-items: flex-start;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-    }
-    .profile-img {
-      width: 120px;
-      height: 120px;
-      border-radius: 6px;
-      object-fit: cover;
-      flex-shrink: 0;
-    }
-    .header-text h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      color: var(--text);
-    }
-    .header-text .tagline {
-      font-size: 1rem;
-      color: var(--accent);
-      margin-top: 0.2rem;
-      font-weight: 500;
-    }
-    .header-text .meta {
-      margin-top: 0.6rem;
-      font-size: 0.9rem;
-      color: var(--text-dim);
-      line-height: 1.6;
-    }
-    .header-links {
-      margin-top: 0.8rem;
-      display: flex;
-      gap: 1.2rem;
-      flex-wrap: wrap;
-    }
-    .header-links a {
-      font-size: 0.9rem;
-      font-weight: 500;
-    }
-
-    /* ——— Sections ——— */
-    section {
-      padding: 2rem 0;
-      border-top: 1px solid var(--border);
-    }
-    section h2 {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-dim);
-      margin-bottom: 1rem;
-    }
-    section p, section li {
-      color: var(--text);
-      font-size: 0.95rem;
-    }
-    ul { list-style: none; }
-    ul li { margin-bottom: 0.5rem; }
-    ul li::before {
-      content: "—";
-      color: var(--accent);
-      margin-right: 0.6rem;
-    }
-
-    /* ——— Bio ——— */
-    .bio p { margin-bottom: 0.8rem; }
-
-    /* ——— Skills grid ——— */
-    .skills-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.2rem 2rem;
-    }
-    .skill-group h3 {
-      font-size: 0.85rem;
-      color: var(--text);
-      margin-bottom: 0.3rem;
-    }
-    .skill-group p {
-      font-size: 0.85rem;
-      color: var(--text-dim);
-      line-height: 1.5;
-    }
-
-    /* ——— Projects ——— */
-    .project {
-      margin-bottom: 1.5rem;
-    }
-    .project h3 {
-      font-size: 1rem;
-      color: var(--text);
-      margin-bottom: 0.2rem;
-    }
-    .project h3 a {
-      color: var(--text);
-    }
-    .project h3 a:hover {
-      color: var(--accent-hover);
-    }
-    .project .meta {
-      font-size: 0.8rem;
-      color: var(--text-dim);
-      margin-bottom: 0.3rem;
-    }
-    .project p {
-      font-size: 0.9rem;
-      color: var(--text-dim);
-    }
-
-    /* ——— Timeline (education & experience) ——— */
-    .timeline-item {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 1.2rem;
-    }
-    .timeline-date {
-      font-size: 0.8rem;
-      color: var(--text-dim);
-      min-width: 120px;
-      flex-shrink: 0;
-      padding-top: 0.15rem;
-    }
-    .timeline-content h3 {
-      font-size: 0.95rem;
-      color: var(--text);
-      margin-bottom: 0.15rem;
-    }
-    .timeline-content p {
-      font-size: 0.85rem;
-      color: var(--text-dim);
-    }
-
-    /* ——— Footer ——— */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 2rem 0;
-      text-align: center;
-      font-size: 0.8rem;
-      color: var(--text-dim);
-    }
-
-    /* ——— Responsive ——— */
-    @media (max-width: 540px) {
-      .header-inner { flex-direction: column; align-items: flex-start; }
-      .profile-img { width: 100px; height: 100px; }
-      .header-text h1 { font-size: 1.6rem; }
-      .skills-grid { grid-template-columns: 1fr; }
-      .timeline-item { flex-direction: column; gap: 0.15rem; }
-    }
-
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg:        #faf7f2;
-        --bg-card:   #f0ebe0;
-        --text:      #2b2822;
-        --text-dim:  #6b6357;
-        --accent:    #9b7407;
-        --accent-hover: #b8890a;
-        --border:    #e0d8c8;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+  <nav>
+    <div class="nav-links">
+      <a href="/" class="nav-link">📊 Dashboard</a>
+      <a href="/plan" class="nav-link">🛒 Recommender</a>
+      <a href="/favorites" class="nav-link">⭐ Favorites</a>
+    </div>
+    <div class="nav-search-wrapper">
+      <input id="item-search" class="nav-search" placeholder="🔍 Filter items…">
+    </div>
+  </nav>
 
-<header>
-  <div class="container">
-    <div class="header-inner">
-      <img src="static/img/yellowshirt.jpeg" alt="Filip Nový" class="profile-img">
-      <div class="header-text">
-        <h1>Filip Nový</h1>
-        <p class="tagline">AI/ML Engineer — Retrieval, GraphRAG, and Applied Machine Learning</p>
-        <p class="meta">
-          MSc Data Science, University of Southern Denmark (June 2026)<br>
-          Prague, Czech Republic · EU Citizen
-        </p>
-        <div class="header-links">
-          <a href="static/docs/Filip_Novy_CV.pdf">CV ↓</a>
-          <a href="https://github.com/Novyfilip">GitHub</a>
-          <a href="https://www.linkedin.com/in/filip-novy-288835254/">LinkedIn</a>
-          <a href="mailto:filip.novy@hotmail.com">Email</a>
-        </div>
+  <div class="content">
+    <header class="overview-grid">
+      <div><strong>Total BUY locked:</strong>
+        {% if total_buy_copper >= 10000 %}{{ total_buy_copper//10000 }}🥇{% endif %}
+        {% if total_buy_copper >= 100 %}{{ (total_buy_copper//100)%100 }}🥈{% endif %}
+        {{ total_buy_copper%100 }}🥉
       </div>
+      <div><strong>Total SELL locked:</strong>
+        {% if total_sell_copper >= 10000 %}{{ total_sell_copper//10000 }}🥇{% endif %}
+        {% if total_sell_copper >= 100 %}{{ (total_sell_copper//100)%100 }}🥈{% endif %}
+        {{ total_sell_copper%100 }}🥉
+      </div>
+      <div><strong>Delivery Box:</strong>
+        {% if total_delivery_copper >= 10000 %}{{ total_delivery_copper//10000 }}🥇{% endif %}
+        {% if total_delivery_copper >= 100 %}{{ (total_delivery_copper//100)%100 }}🥈{% endif %}
+        {{ total_delivery_copper%100 }}🥉
+      </div>
+      <div><strong>Grand Total:</strong>
+        {% if grand_total_copper >= 10000 %}{{ grand_total_copper//10000 }}🥇{% endif %}
+        {% if grand_total_copper >= 100 %}{{ (grand_total_copper//100)%100 }}🥈{% endif %}
+        {{ grand_total_copper%100 }}🥉
+      </div>
+    </header>
+
+    <div class="tables">
+      <section class="panel">
+        <h2>Buy Orders</h2>
+        <table>
+          <thead><tr><th>Name</th><th>Qty</th><th>Price</th><th>Locked</th></tr></thead>
+          <tbody>
+          {% for o in buys %}
+            <tr>
+              <td>{{o.name}}</td>
+              <td>{{o.quantity}}</td>
+              <td>{% if o.price>=10000 %}{{o.price//10000}}🥇{% endif %}{% if o.price>=100 %}{{(o.price//100)%100}}🥈{% endif %}{{o.price%100}}🥉</td>
+              <td>{% set v=o.price*o.quantity %}{% if v>=10000 %}{{v//10000}}🥇{% endif %}{% if v>=100 %}{{(v//100)%100}}🥈{% endif %}{{v%100}}🥉</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Sell Orders</h2>
+        <table>
+          <thead><tr><th>Name</th><th>Qty</th><th>Price</th><th>Locked</th></tr></thead>
+          <tbody>
+          {% for o in sells %}
+            <tr>
+              <td>{{o.name}}</td>
+              <td>{{o.quantity}}</td>
+              <td>{% if o.price>=10000 %}{{o.price//10000}}🥇{% endif %}{% if o.price>=100 %}{{(o.price//100)%100}}🥈{% endif %}{{o.price%100}}🥉</td>
+              <td>{% set v=o.price*o.quantity %}{% if v>=10000 %}{{v//10000}}🥇{% endif %}{% if v>=100 %}{{(v//100)%100}}🥈{% endif %}{{v%100}}🥉</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </section>
     </div>
   </div>
-</header>
 
-<section id="about">
-  <div class="container">
-    <h2>About</h2>
-    <div class="bio">
-      <p>
-        I build retrieval-augmented generation systems that actually work in production.
-        My master's thesis — a hybrid GraphRAG chatbot serving ~880 scientific papers —
-        combined a Neo4j knowledge graph, dense vector search, and multi-query reformulation
-        into a deployed application (<a href="https://algaebot.filipnovy.dk">algaebot.filipnovy.dk</a>).
-        A paper isolating the contribution of each pipeline component is under review at KONVENS 2026.
-      </p>
-      <p>
-        Previously I spent 1.5 years at T-Mobile Czech Republic engineering SQL data pipelines
-        and shipping Power BI dashboards adopted by regional sales teams.
-        I'm looking for AI/ML engineering roles where rigorous evaluation matters — not just
-        building demos, but measuring whether they work.
-      </p>
-    </div>
-  </div>
-</section>
-
-<section id="skills">
-  <div class="container">
-    <h2>Skills</h2>
-    <div class="skills-grid">
-      <div class="skill-group">
-        <h3>Languages</h3>
-        <p>Python (PyTorch, LangChain, FastAPI, Pydantic), SQL, R, Java basics</p>
-      </div>
-      <div class="skill-group">
-        <h3>ML & NLP</h3>
-        <p>Transformers, dense embeddings, cross-encoder reranking, RAG / GraphRAG, vector DBs (ChromaDB), knowledge graphs (Neo4j)</p>
-      </div>
-      <div class="skill-group">
-        <h3>LLM & Evaluation</h3>
-        <p>OpenAI / DeepSeek APIs, prompt engineering, RAGAS, custom eval frameworks, structured output (instructor), agentic workflows</p>
-      </div>
-      <div class="skill-group">
-        <h3>Tools & MLOps</h3>
-        <p>Git, Docker, Streamlit, Power BI, Plotly, DigitalOcean</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="projects">
-  <div class="container">
-    <h2>Selected Projects</h2>
-
-    <div class="project">
-      <h3><a href="https://github.com/Novyfilip/algae-graphrag-thesis">AlgaeBot — Hybrid GraphRAG for Scientific Literature</a></h3>
-      <p class="meta">Master's Thesis · Neo4j · ChromaDB · LangChain · BGE · RAGAS · Streamlit</p>
-      <p>Production RAG system over 879 peer-reviewed PDFs. Full pipeline: PDF extraction with OCR fallback, recursive chunking (~32k chunks), knowledge graph construction (~60k entities, 100k+ edges), two-stage summarization, multi-query retrieval with cross-encoder reranking. Factorial ablation study isolating graph expansion and community summaries with statistical validation. +4.8% faithfulness over baseline. Paper under review at KONVENS 2026.</p>
-      <img src="static/img/AlgaeArchitecture.png" alt="AlgaeBot system architecture" style="max-width:100%; border-radius:6px; margin-top:0.6rem; border:1px solid var(--border);">
-      <img src="static/img/graph.png" alt="Neo4j knowledge graph visualization" style="max-width:100%; border-radius:6px; margin-top:0.6rem; border:1px solid var(--border);">
-    </div>
-
-    <div class="project">
-      <h3><a href="https://github.com/Novyfilip/Deep-Learning-Portfolio">Deep Learning Portfolio</a></h3>
-      <p class="meta">PyTorch · TensorFlow</p>
-      <p>From-scratch implementations: CNNs, RNNs/LSTMs, autoencoders, VAEs, GANs, Transformers, plus backpropagation and SGD variants. Built across coursework and self-study.</p>
-    </div>
-
-    <div class="project">
-      <h3>Vision Transformer for Plant Disease Classification</h3>
-      <p class="meta">PyTorch · 87K images · 38 classes · 99.77% accuracy</p>
-      <p>Fine-tuned ViT with custom attention heads. Highest grade (12/12) on oral exam.</p>
-    </div>
-
-    <div class="project">
-      <h3>Quantitative Trading System</h3>
-      <p class="meta">Python · Flask · Survival Analysis · Linear Programming</p>
-      <p>End-to-end trading advisor: Weibull survival model for order-fill probability, linear program for capital allocation. Ranked top 0.1% of 460,000+ accounts by actively traded capital.</p>
-      <img src="static/img/tpProof.png" alt="Current rank: top 503 traders globally" style="max-width:100%; border-radius:6px; margin-top:0.6rem; border:1px solid var(--border);" onerror="this.style.display='none'">
-      <img src="static/img/dashboard.png" alt="Trading system dashboard" style="max-width:100%; border-radius:6px; margin-top:0.6rem; border:1px solid var(--border);" onerror="this.style.display='none'">
-    </div>
-  </div>
-</section>
-
-<section id="experience">
-  <div class="container">
-    <h2>Experience</h2>
-
-    <div class="timeline-item">
-      <div class="timeline-date">Apr 2023 – Aug 2024</div>
-      <div class="timeline-content">
-        <h3>Data Analyst Trainee · T-Mobile Czech Republic</h3>
-        <p>Engineered SQL pipelines against Oracle and MS SQL to consolidate revenue data. Designed Power BI dashboards adopted by regional sales teams across Czech Republic. Translated between business stakeholders and analytics team.</p>
-      </div>
-    </div>
-
-    <div class="timeline-item">
-      <div class="timeline-date">2025</div>
-      <div class="timeline-content">
-        <h3>Student Tutor · SDU Kolding</h3>
-        <p>Mentored incoming MSc students across 30+ nationalities. Recognized in written recommendation by Programme Coordinator.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="education">
-  <div class="container">
-    <h2>Education</h2>
-
-    <div class="timeline-item">
-      <div class="timeline-date">2024 – 2026</div>
-      <div class="timeline-content">
-        <h3>MSc Data Science · University of Southern Denmark, Kolding</h3>
-        <p>Thesis: Domain-Specific Chatbot for Algae Research — A Hybrid GraphRAG Approach. Supervisor: Tariq Yousef. Coursework (grade 12): Deep Learning, Applied ML, NLP, Data Visualization.</p>
-      </div>
-    </div>
-
-    <div class="timeline-item">
-      <div class="timeline-date">2020 – 2024</div>
-      <div class="timeline-content">
-        <h3>BSc Applied Computer Science · Prague University of Economics (VŠE)</h3>
-        <p>Thesis: An Analysis of the Current State of Research on Artificial General Intelligence (grade A). Erasmus exchange in Poland.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="publications">
-  <div class="container">
-    <h2>Publications</h2>
-    <div class="project">
-      <h3>Not All Context Helps: Isolating Graph Expansion and Community Summaries in Scientific RAG</h3>
-      <p class="meta">Under review at KONVENS 2026</p>
-      <p>Controlled factorial ablation evaluating retrieval components over 879 scientific papers. Identified super-additive interaction between graph expansion and community summaries. Optimized configuration achieves +4.8% faithfulness.</p>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="container">
-    <p>Filip Nový · filip.novy@hotmail.com · <a href="https://filipnovy.dk">filipnovy.dk</a></p>
-  </div>
-</footer>
-
+  <script>
+    document.getElementById('item-search')
+      .addEventListener('input', e => {
+        const f = e.target.value.toLowerCase();
+        document.querySelectorAll('.panel tbody tr').forEach(r => {
+          r.style.display = r.cells[0].textContent.toLowerCase().includes(f) ? '' : 'none';
+        });
+      });
+  </script>
 </body>
 </html>
