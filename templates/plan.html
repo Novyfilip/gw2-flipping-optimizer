@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Recommendations — GW2 TP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav>
+    <div class="nav-links">
+      <a href="/" class="nav-link">📊 Dashboard</a>
+      <a href="/plan" class="nav-link">🛒 Recommender</a>
+      <a href="/favorites" class="nav-link">⭐ Favorites</a>
+    </div>
+  </nav>
+
+  <div class="content">
+    <h1>Recommended Buys</h1>
+
+    <form method="get" style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+      <label>Budget (gold): <input name="budget" type="number" value="{{ budget }}" min="1" style="width:80px;"></label>
+      <label>Horizon (days): <input name="horizon" type="number" value="{{ horizon }}" min="1" max="30" style="width:60px;"></label>
+      <label>Min margin %: <input name="min_margin" type="number" value="{{ min_margin }}" min="1" max="100" step="1" style="width:60px;"></label>
+      <label>Min fill prob %: <input name="min_fill_prob" type="number" value="{{ min_fill_prob }}" min="0" max="100" step="5" style="width:60px;"></label>
+      <button type="submit">Optimize</button>
+    </form>
+
+    {% if error %}
+    <div class="panel" style="background:rgba(255,100,100,0.3);">{{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+    <div class="panel" style="margin-bottom:1rem;">
+      <strong>Expected profit:</strong>
+      {% set p = result.total_expected_profit_gold %}
+      {% if p >= 10000 %}{{ (p//10000)|int }}🥇{% endif %}
+      {% if p >= 100 %}{{ ((p//100)%100)|int }}🥈{% endif %}
+      {{ (p%100)|round(1) }}🥉
+      &nbsp;|&nbsp;
+      <strong>Capital deployed:</strong>
+      {% set c = result.total_cost_gold %}
+      {% if c >= 10000 %}{{ (c//10000)|int }}🥇{% endif %}
+      {% if c >= 100 %}{{ ((c//100)%100)|int }}🥈{% endif %}
+      {{ (c%100)|round(1) }}🥉
+      &nbsp;|&nbsp;
+      <strong>ROI:</strong> {{ "%.1f"|format(result.roi_percent) }}%
+      &nbsp;|&nbsp;
+      <strong>Items:</strong> {{ result.items_selected }}
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Buy</th>
+          <th>Sell</th>
+          <th>Margin</th>
+          <th>Fill Prob</th>
+          <th>Qty</th>
+          <th>Cost (g)</th>
+          <th>Exp. Profit (g)</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in result.summary %}
+        <tr>
+          <td>{{ row.item_name }}</td>
+          <td>
+            {% if row.buy_price >= 10000 %}{{ (row.buy_price//10000)|int }}🥇{% endif %}
+            {% if row.buy_price >= 100 %}{{ ((row.buy_price//100)%100)|int }}🥈{% endif %}
+            {{ row.buy_price%100 }}🥉
+          </td>
+          <td>
+            {% if row.sell_price >= 10000 %}{{ (row.sell_price//10000)|int }}🥇{% endif %}
+            {% if row.sell_price >= 100 %}{{ ((row.sell_price//100)%100)|int }}🥈{% endif %}
+            {{ row.sell_price%100 }}🥉
+          </td>
+          <td>{{ "%.1f"|format(row.margin * 100) }}%</td>
+          <td>{{ "%.0f"|format(row.fill_prob * 100) }}%</td>
+          <td>{{ row.quantity }}</td>
+          <td>{{ "%.1f"|format(row.cost_gold) }}</td>
+          <td>{{ "%.1f"|format(row.expected_profit_gold) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if not result and not error %}
+    <p>Set your budget and horizon, then click Optimize.</p>
+    {% endif %}
+  </div>
+</body>
+</html>
